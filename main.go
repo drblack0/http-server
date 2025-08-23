@@ -1,10 +1,13 @@
 package main
 
 import (
-	"http-server/internal/request"
-	"strings"
+	"fmt"
+	"http-server/internal/headers"
 )
 
 func main() {
-	request.RequestFromReader(strings.NewReader("GET /coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
+	h := headers.Headers{}
+	h.Parse([]byte("Host: localhost:42069    \r\n\r\n"))
+
+	fmt.Println(h)
 }
