@@ -4,46 +4,79 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"unicode"
 )
 
-const clrf = "\r\n"
+var clrf = []byte("\r\n")
 
 var MalformedHeadersError = fmt.Errorf("malformed headers")
 
 type Headers map[string]string
 
 func NewHeaders() Headers {
-	return Headers{}
+	return map[string]string{}
 }
 
-func (h Headers) Parse(data []byte) (n int, done bool, err error) {
-	idx := bytes.Index(data, []byte(clrf))
+func validateFieldName(key string) bool {
+	for _, s := range key {
+		// todo: put the special character check here
+		if !unicode.IsLetter(s) && !unicode.IsNumber(s) {
+			return false
+		}
+	}
+	return true
+}
 
-	if idx == -1 {
-		return 0, false, nil
+func parseHeader(fieldLine []byte) (string, string, error) {
+	parts := bytes.SplitN(fieldLine, []byte(":"), 2)
+
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("malformed field line")
 	}
 
-	if idx == 0 {
-		return 0, true, nil
+	key := parts[0]
+	value := bytes.TrimSpace(parts[1])
+
+	if bytes.HasSuffix(key, []byte(" ")) {
+		return "", "", fmt.Errorf("malformed field name")
 	}
 
-	part := data[:idx]
-
-	colonIdx := bytes.Index(part, []byte(":"))
-
-	if colonIdx == -1 {
-		return 0, false, nil
+	if !validateFieldName(string(key)) {
+		return "", "", fmt.Errorf("invalid character in field name")
 	}
 
-	if data[colonIdx-1] == ' ' {
-		return 0, false, MalformedHeadersError
+	return string(key), string(value), nil
+}
+
+func (h Headers) Parse(data []byte) (int, bool, error) {
+
+	read := 0
+	done := false
+	for {
+		idx := bytes.Index(data[read:], clrf)
+
+		if idx == -1 {
+			break
+		}
+
+		// Empty line indicating end of headers
+		if idx == 0 {
+			done = true
+			read += len(clrf)
+			break
+		}
+
+		key, value, err := parseHeader(data[read : read+idx])
+
+		if err != nil {
+			return 0, false, err
+		}
+
+		lowerKey := strings.ToLower(key)
+		h[lowerKey] = value
+		fmt.Println(h)
+		read += idx + len(clrf)
 	}
 
-	clrfIdx := bytes.Index(data[idx+1:], []byte(clrf))
-	key := data[:colonIdx]
-	value := data[colonIdx+1 : idx+clrfIdx - 1]
-
-	h[string(key)] = strings.Trim(string(value), " ")
-	n = idx + len(clrf)
-	return n, false, nil
+	return read, done, nil
 }
