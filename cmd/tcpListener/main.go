@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
-	"io"
+	"http-server/internal/request"
 	"log"
 	"net"
-	"strings"
 )
 
 func main() {
@@ -23,46 +22,11 @@ func main() {
 			break
 		}
 
-		sentenceChan := getLinesChannel(conn)
+		rl, err := request.RequestFromReader(conn)
 
-		for value := range sentenceChan {
-			fmt.Printf("%s\n", value)
-		}
+		fmt.Println("Request line: ")
+		fmt.Printf("- Method: %s\n", rl.RequestLine.Method)
+		fmt.Printf("- Target: %s\n", rl.RequestLine.RequestTarget)
+		fmt.Printf("- Version: %v\n", rl.RequestLine.HttpVersion)
 	}
-}
-
-func getLinesChannel(f io.ReadCloser) <-chan string {
-	sentenceChan := make(chan string)
-	go func() {
-		defer f.Close()
-		defer close(sentenceChan)
-
-		msg := make([]byte, 8)
-		curr := ""
-
-		for {
-			_, err := f.Read(msg)
-
-			if err == io.EOF {
-				fmt.Println("read: end")
-				return
-			}
-
-			parts := strings.Split(string(msg), "\n")
-
-			if len(parts) > 1 {
-				curr += parts[0]
-				sentenceChan <- curr
-
-				// there is no remove function to use so we are using the indexing to remove the first element
-				subParts := parts[1:]
-				parts = subParts
-
-				curr = ""
-			}
-
-			curr += parts[0]
-		}
-	}()
-	return sentenceChan
 }

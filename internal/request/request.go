@@ -1,15 +1,36 @@
 package request
 
 import (
+	"bytes"
 	"fmt"
 	"io"
-	"log"
-	"strings"
 	"unicode"
 )
 
+type parserState string
+
+const (
+	StateInit parserState = "init"
+	StateDone parserState = "done"
+)
+
+var ERROR_MALFORMED_REQUEST = fmt.Errorf("malformed request")
+var ERROR_BAD_REQUEST_LINE = fmt.Errorf("malformed request line recieved")
+var ERROR_UNSUPPORTED_HTTP_VERSION = fmt.Errorf("unsupported http version used")
+
 type Request struct {
 	RequestLine RequestLine
+	state       parserState
+}
+
+func newRequest() *Request {
+	return &Request{
+		state: StateInit,
+	}
+}
+
+func (r *Request) done() bool {
+	return r.state == StateDone
 }
 
 type RequestLine struct {
@@ -18,58 +39,86 @@ type RequestLine struct {
 	Method        string
 }
 
-func RequestFromReader(reader io.Reader) (*Request, error) {
-	request, err := io.ReadAll(reader)
+func (r *Request) parse(data []byte) (int, error) {
+	read := 0
+	switch r.state {
+	case StateInit:
+		rl, n, err := parseRequestLine(data)
+		if err != nil {
+			return 0, err 
+		}
 
-	if err != nil {
-		log.Fatal("error while reading request: ", err)
+		if n == 0 {
+			break
+		}
+
+		r.RequestLine = *rl
+		read += n
+
+		r.state = StateDone
+	case StateDone:
+		break
 	}
-
-	requestLine, err := parseRequestLine(request)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &Request{
-		RequestLine: *requestLine,
-	}, nil
+	return read, nil
 }
 
-func parseRequestLine(r []byte) (*RequestLine, error) {
+func RequestFromReader(reader io.Reader) (*Request, error) {
+	request := newRequest()
 
-	// we are just going to be using the first part which is the request line
-	parts := strings.Split(string(r), "\r\n")
+	buf := make([]byte, 1024)
+	buffLen := 0
 
-	requestLineParts := strings.Split(parts[0], " ")
+	for !request.done() {
+		n, err := reader.Read(buf[buffLen:])
+		if err != nil {
+			return nil, err
+		}
+
+		buffLen += n
+
+		readN, err := request.parse(buf[:buffLen])
+		if err != nil {
+			return nil, err
+		}
+
+		copy(buf, buf[readN:buffLen])
+		buffLen -= readN
+	}
+
+	return request, nil
+}
+
+func parseRequestLine(r []byte) (*RequestLine, int, error) {
+	idx := bytes.Index(r, []byte("\r\n"))
+
+	if idx == -1 {
+		return nil, 0, nil
+	}
+	read := idx + len([]byte("\r\n"))
+	parts := bytes.Split(r, []byte("\r\n"))
+
+	requestLineParts := bytes.Split(parts[0], []byte(" "))
 
 	if len(requestLineParts) != 3 {
-		log.Println("invalid request line, number of args more than 3")
-		return nil, fmt.Errorf("invalid request line, number of args more than 3")
+		return nil, 0, ERROR_MALFORMED_REQUEST
 	}
 
-	if !isUpper(requestLineParts[0]) {
-		log.Println("http method not proper, should be in caps, recieved: ", requestLineParts[0])
-		return nil, fmt.Errorf("http method not proper, should be in caps, recieved: %s", requestLineParts[0])
+	if !isUpper(string(requestLineParts[0])) {
+		return nil, 0, ERROR_MALFORMED_REQUEST
 	}
 
-	if !strings.HasPrefix(requestLineParts[1], "/") {
-		log.Println("the target should start with /")
-		return nil, fmt.Errorf("the target should start with /, recieved: %s", requestLineParts[1])
+	httpParts := bytes.Split(requestLineParts[2], []byte("/"))
+	if len(httpParts) != 2 || string(httpParts[0]) != "HTTP" || string(httpParts[1]) != "1.1" {
+		return nil, 0, ERROR_MALFORMED_REQUEST
 	}
 
-	if strings.Split(requestLineParts[2], "/")[1] != "1.1" {
-		log.Println("only http 1.1 is supported right now and recieved: ", requestLineParts[1])
-		return nil, fmt.Errorf("only http 1.1 is supported right now and recieved: %s", requestLineParts[1])
+	rl := &RequestLine{
+		HttpVersion:   string(httpParts[1]),
+		RequestTarget: string(requestLineParts[1]),
+		Method:        string(requestLineParts[0]),
 	}
 
-	fmt.Println("here si the request line parts: ", requestLineParts)
-
-	return &RequestLine{
-		HttpVersion:   strings.Split(requestLineParts[2], "/")[1],
-		RequestTarget: requestLineParts[1],
-		Method:        requestLineParts[0],
-	}, nil
+	return rl, read, nil
 }
 
 func isUpper(s string) bool {
