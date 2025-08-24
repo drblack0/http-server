@@ -24,7 +24,12 @@ func (h *Headers) Get(key string) string {
 }
 
 func (h *Headers) Set(key string, value string) {
-	h.headers[strings.ToLower(key)] = value
+	if v, ok := h.headers[strings.ToLower(key)]; ok {
+		h.headers[strings.ToLower(key)] = fmt.Sprintf("%s,%s", v, value)
+		return
+	} else {
+		h.headers[strings.ToLower(key)] = value
+	}
 }
 
 func validateFieldName(key string) bool {

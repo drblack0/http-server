@@ -3,6 +3,7 @@ package request
 import (
 	"bytes"
 	"fmt"
+	"http-server/internal/headers"
 	"io"
 	"unicode"
 )
@@ -10,8 +11,9 @@ import (
 type parserState string
 
 const (
-	StateInit parserState = "init"
-	StateDone parserState = "done"
+	StateInit           parserState = "init"
+	StateDone           parserState = "done"
+	StateParsingHeaders parserState = "parsingHeaders"
 )
 
 var ERROR_MALFORMED_REQUEST = fmt.Errorf("malformed request")
@@ -20,12 +22,14 @@ var ERROR_UNSUPPORTED_HTTP_VERSION = fmt.Errorf("unsupported http version used")
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     headers.Headers
 	state       parserState
 }
 
 func newRequest() *Request {
 	return &Request{
-		state: StateInit,
+		state:   StateInit,
+		Headers: *headers.NewHeaders(),
 	}
 }
 
@@ -45,7 +49,7 @@ func (r *Request) parse(data []byte) (int, error) {
 	case StateInit:
 		rl, n, err := parseRequestLine(data)
 		if err != nil {
-			return 0, err 
+			return 0, err
 		}
 
 		if n == 0 {
@@ -55,7 +59,23 @@ func (r *Request) parse(data []byte) (int, error) {
 		r.RequestLine = *rl
 		read += n
 
-		r.state = StateDone
+		r.state = StateParsingHeaders
+	case StateParsingHeaders:
+		n, done, err := r.Headers.Parse(data)
+
+		if err != nil {
+			return 0, err
+		}
+
+		if n == 0 {
+			break
+		}
+
+		read += n
+
+		if done {
+			r.state = StateDone
+		}
 	case StateDone:
 		break
 	}
@@ -86,6 +106,15 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	}
 
 	return request, nil
+}
+
+func isUpper(s string) bool {
+	for _, bit := range s {
+		if !unicode.IsUpper(bit) && unicode.IsLetter(bit) {
+			return false
+		}
+	}
+	return true
 }
 
 func parseRequestLine(r []byte) (*RequestLine, int, error) {
@@ -119,13 +148,4 @@ func parseRequestLine(r []byte) (*RequestLine, int, error) {
 	}
 
 	return rl, read, nil
-}
-
-func isUpper(s string) bool {
-	for _, bit := range s {
-		if !unicode.IsUpper(bit) && unicode.IsLetter(bit) {
-			return false
-		}
-	}
-	return true
 }
