@@ -11,16 +11,26 @@ var clrf = []byte("\r\n")
 
 var MalformedHeadersError = fmt.Errorf("malformed headers")
 
-type Headers map[string]string
+type Headers struct {
+	headers map[string]string
+}
 
-func NewHeaders() Headers {
-	return map[string]string{}
+func NewHeaders() *Headers {
+	return &Headers{headers: map[string]string{}}
+}
+
+func (h *Headers) Get(key string) string {
+	return h.headers[strings.ToLower(key)]
+}
+
+func (h *Headers) Set(key string, value string) {
+	h.headers[strings.ToLower(key)] = value
 }
 
 func validateFieldName(key string) bool {
 	for _, s := range key {
 		// todo: put the special character check here
-		if !unicode.IsLetter(s) && !unicode.IsNumber(s) {
+		if !unicode.IsLetter(s) && !unicode.IsNumber(s) && !strings.ContainsRune("!#$%&'*+-.^_`|~", s) {
 			return false
 		}
 	}
@@ -72,8 +82,7 @@ func (h Headers) Parse(data []byte) (int, bool, error) {
 			return 0, false, err
 		}
 
-		lowerKey := strings.ToLower(key)
-		h[lowerKey] = value
+		h.Set(key, value)
 		fmt.Println(h)
 		read += idx + len(clrf)
 	}
