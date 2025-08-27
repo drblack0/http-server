@@ -32,6 +32,12 @@ func (h *Headers) Set(key string, value string) {
 	}
 }
 
+func(h *Headers) ForEach(f func(key string, value string)) {
+	for k, v := range h.headers {
+		f(k, v )
+	}
+}
+
 func validateFieldName(key string) bool {
 	for _, s := range key {
 		// todo: put the special character check here

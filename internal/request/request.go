@@ -45,39 +45,47 @@ type RequestLine struct {
 
 func (r *Request) parse(data []byte) (int, error) {
 	read := 0
-	switch r.state {
-	case StateInit:
-		rl, n, err := parseRequestLine(data)
-		if err != nil {
-			return 0, err
+	totalBytesRead := 0
+outer:
+	for totalBytesRead != len(data) {
+		partialData := data[totalBytesRead:]
+
+		switch r.state {
+		case StateInit:
+			rl, n, err := parseRequestLine(partialData)
+			if err != nil {
+				return 0, err
+			}
+
+			if n == 0 {
+				break
+			}
+
+			r.RequestLine = *rl
+			read += n
+			totalBytesRead += n
+
+			r.state = StateParsingHeaders
+		case StateParsingHeaders:
+			n, done, err := r.Headers.Parse(partialData)
+
+			if err != nil {
+				return 0, err
+			}
+
+			if n == 0 {
+				break
+			}
+
+			read += n
+			totalBytesRead += n
+
+			if done {
+				r.state = StateDone
+			}
+		case StateDone:
+			break outer
 		}
-
-		if n == 0 {
-			break
-		}
-
-		r.RequestLine = *rl
-		read += n
-
-		r.state = StateParsingHeaders
-	case StateParsingHeaders:
-		n, done, err := r.Headers.Parse(data)
-
-		if err != nil {
-			return 0, err
-		}
-
-		if n == 0 {
-			break
-		}
-
-		read += n
-
-		if done {
-			r.state = StateDone
-		}
-	case StateDone:
-		break
 	}
 	return read, nil
 }
@@ -89,6 +97,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	buffLen := 0
 
 	for !request.done() {
+		fmt.Println("here in the for loop")
 		n, err := reader.Read(buf[buffLen:])
 		if err != nil {
 			return nil, err
