@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"http-server/internal/headers"
 	"io"
+	"strconv"
 	"unicode"
 )
 
@@ -13,7 +14,8 @@ type parserState string
 const (
 	StateInit           parserState = "init"
 	StateDone           parserState = "done"
-	StateParsingHeaders parserState = "parsingHeaders"
+	StateParsingHeaders parserState = "headers"
+	StateParsingBody    parserState = "body"
 )
 
 var ERROR_MALFORMED_REQUEST = fmt.Errorf("malformed request")
@@ -23,6 +25,7 @@ var ERROR_UNSUPPORTED_HTTP_VERSION = fmt.Errorf("unsupported http version used")
 type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
+	Body        []byte
 	state       parserState
 }
 
@@ -30,6 +33,7 @@ func newRequest() *Request {
 	return &Request{
 		state:   StateInit,
 		Headers: *headers.NewHeaders(),
+		Body:    make([]byte, 0),
 	}
 }
 
@@ -43,12 +47,15 @@ type RequestLine struct {
 	Method        string
 }
 
+func (r *Request) hasBody() bool {
+	return r.Headers.Get("content-length") != ""
+}
+
 func (r *Request) parse(data []byte) (int, error) {
 	read := 0
-	totalBytesRead := 0
 outer:
-	for totalBytesRead != len(data) {
-		partialData := data[totalBytesRead:]
+	for read != len(data) {
+		partialData := data[read:]
 
 		switch r.state {
 		case StateInit:
@@ -58,12 +65,11 @@ outer:
 			}
 
 			if n == 0 {
-				break
+				break outer
 			}
 
 			r.RequestLine = *rl
 			read += n
-			totalBytesRead += n
 
 			r.state = StateParsingHeaders
 		case StateParsingHeaders:
@@ -74,15 +80,43 @@ outer:
 			}
 
 			if n == 0 {
-				break
+				break outer
 			}
 
 			read += n
-			totalBytesRead += n
 
 			if done {
+				if r.hasBody() {
+					r.state = StateParsingBody
+				} else {
+					r.state = StateDone
+				}
+			}
+
+		case StateParsingBody:
+			lengthStr := r.Headers.Get("content-length")
+
+			contentLenght, err := strconv.Atoi(lengthStr)
+
+			if err != nil {
+				return 0, err
+			}
+
+			if contentLenght == 0 {
+				r.state = StateDone
+				break outer
+			}
+
+			remaining := min(contentLenght-len(r.Body), len(partialData))
+
+			r.Body = append(r.Body, partialData[:remaining]...)
+
+			read += remaining
+
+			if len(r.Body) == contentLenght {
 				r.state = StateDone
 			}
+
 		case StateDone:
 			break outer
 		}
@@ -97,9 +131,15 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	buffLen := 0
 
 	for !request.done() {
-		fmt.Println("here in the for loop")
 		n, err := reader.Read(buf[buffLen:])
 		if err != nil {
+			if err == io.EOF {
+				if request.done() {
+					return request, nil
+				} else {
+					return nil, ERROR_MALFORMED_REQUEST
+				}
+			}
 			return nil, err
 		}
 

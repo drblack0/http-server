@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"http-server/internal/request"
 	"io"
@@ -8,13 +9,29 @@ import (
 
 func main() {
 	reader := &chunkReader{
-		data:            "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n",
+		data: "POST /submit HTTP/1.1\r\n" +
+			"Host: localhost:42069\r\n" +
+			"Content-Length: 13\r\n" +
+			"\r\n" +
+			"hello world!\n",
 		numBytesPerRead: 3,
 	}
 	r, _ := request.RequestFromReader(reader)
 
-	fmt.Println(r.Headers)
+	fmt.Println(string(r.Body))
 
+	test()
+}
+
+func test() {
+	testStr := "POST /submit HTTP/1.1\r\n" +
+		"Host: localhost:42069\r\n" +
+		"Content-Length: 13\r\n" +
+		"\r\n" +
+		"hello world!\n"
+
+	idx := bytes.Index([]byte(testStr), []byte("\r\n"))
+	fmt.Println(idx)
 }
 
 type chunkReader struct {
