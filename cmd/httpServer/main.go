@@ -81,6 +81,33 @@ func main() {
 			}
 
 			w.WriteBody([]byte("0\r\n\r\n"))
+		} else if strings.HasPrefix(req.RequestLine.RequestTarget, "/video") {
+			videoData, err := os.Open("/mnt/c/Users/karti/projects/http-server/assets/vim.mp4")
+
+			if err != nil {
+				w.WriteStatusLine(response.InternalServerError)
+				return
+			}
+
+			h.Replace("content-type", "video/mp4")
+			totalLength := 0
+			totalData := make([]byte, 0)
+			for {
+				data := make([]byte, 32)
+
+				n, err := videoData.Read(data)
+
+				if err != nil {
+					break
+				}
+
+				totalData = append(totalData, data...)
+				totalLength += n
+			}
+
+			h.Replace("content-length", fmt.Sprintf("%d", totalLength))
+			w.WriteHeaders(h)
+			w.WriteBody(totalData)
 		} else {
 			responseString := `<html>
 					<head>
