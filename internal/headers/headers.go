@@ -48,6 +48,10 @@ func (h *Headers) Replace(k, v string) {
 	fmt.Println(h.Headers)
 }
 
+func (h *Headers) Delete(k string) {
+	delete(h.Headers, k)
+}
+
 func validateFieldName(key string) bool {
 	for _, s := range key {
 		if !unicode.IsLetter(s) && !unicode.IsNumber(s) && !strings.ContainsRune("!#$%&'*+-.^_`|~", s) {
