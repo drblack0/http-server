@@ -3,24 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"http-server/internal/request"
 	"io"
 )
 
 func main() {
-	reader := &chunkReader{
-		data: "POST /submit HTTP/1.1\r\n" +
-			"Host: localhost:42069\r\n" +
-			"Content-Length: 13\r\n" +
-			"\r\n" +
-			"hello world!\n",
-		numBytesPerRead: 3,
-	}
-	r, _ := request.RequestFromReader(reader)
-
-	fmt.Println(string(r.Body))
-
-	test()
+	testignMap()
 }
 
 func test() {
@@ -54,4 +41,16 @@ func (cr *chunkReader) Read(p []byte) (n int, err error) {
 	cr.pos += n
 
 	return n, nil
+}
+
+func testignMap() {
+	arr := map[string]string{
+		"hello": "world",
+	}
+
+	fmt.Println(arr)
+
+	arr["hello"] = "new world"
+
+	fmt.Println(arr)
 }

@@ -38,6 +38,16 @@ func (h *Headers) ForEach(f func(key string, value string)) {
 	}
 }
 
+func (h *Headers) Replace(k, v string) {
+	if _, ok := h.Headers[strings.ToLower(k)]; ok {
+		h.Headers[strings.ToLower(k)] = v
+	} else {
+		h.Headers[strings.ToLower(k)] = v
+	}
+
+	fmt.Println(h.Headers)
+}
+
 func validateFieldName(key string) bool {
 	for _, s := range key {
 		if !unicode.IsLetter(s) && !unicode.IsNumber(s) && !strings.ContainsRune("!#$%&'*+-.^_`|~", s) {

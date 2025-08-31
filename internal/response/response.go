@@ -14,6 +14,16 @@ const (
 	InternalServerError StatusCode = 500
 )
 
+type Writer struct {
+	writer io.Writer
+}
+
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{
+		writer: w,
+	}
+}
+
 func getStatusCodeLine(statusCode StatusCode) string {
 	response := ""
 	switch statusCode {
@@ -63,4 +73,43 @@ func WriteHeaders(w io.Writer, headers headers.Headers) error {
 		return err
 	}
 	return nil
+}
+
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	out := getStatusCodeLine(statusCode)
+	_, err := w.writer.Write([]byte(out))
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+
+	for k, v := range headers.Headers {
+		out := fmt.Sprintf("%s: %s\r\n", k, v)
+		_, err := w.writer.Write([]byte(out))
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err := w.writer.Write([]byte("\r\n"))
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	n, err := w.writer.Write(p)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return n, nil
 }

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"http-server/internal/request"
 	"http-server/internal/response"
@@ -19,7 +18,7 @@ type HandleError struct {
 	Msg        string
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandleError
+type Handler func(w *response.Writer, req *request.Request)
 
 func newServer() *Server {
 	return &Server{
@@ -45,35 +44,13 @@ func (s *Server) Close() error {
 
 func (s *Server) handle(conn io.ReadWriteCloser, handleFunc Handler) {
 	defer conn.Close()
-	responseBody := bytes.Buffer{}
-
+	responseWriter := response.NewWriter(conn)
 	req, err := request.RequestFromReader(conn)
-
 	if err != nil {
 		writeErrorMsg(conn, &HandleError{StatusCode: response.BadRequest, Msg: "Malformed request\n"})
 		return
 	}
-
-	handleFuncError := handleFunc(&responseBody, req)
-
-	if handleFuncError != nil {
-		writeErrorMsg(conn, handleFuncError)
-		return
-	}
-
-	statusLineError := response.WriteStatusLine(conn, response.SuccessfulRequest)
-
-	if statusLineError != nil {
-		return
-	}
-
-	headersError := response.WriteHeaders(conn, response.GetDefaultHeaders(len(responseBody.String())))
-
-	if headersError != nil {
-		return
-	}
-
-	conn.Write(responseBody.Bytes())
+	handleFunc(responseWriter, req)
 }
 
 func (s *Server) listen(handleFunc Handler) {
