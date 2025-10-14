@@ -1,3 +1,4 @@
+# 🌐 PulseHTTP — Minimal HTTP/1.1 Server on Raw TCP
 > *A handcrafted HTTP server written in Go, built from the ground up using raw TCP sockets. No frameworks. No `net/http`. Just protocols, sockets, and packets.*
 
 **Author:** Kartik Saxena
