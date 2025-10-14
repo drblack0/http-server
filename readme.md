@@ -1,6 +1,3 @@
-Most developers use Go’s standard `net/http` — but *building an HTTP/1.1 server from scratch on raw TCP* shows a deep understanding of **networking, protocols, and lower-level 
-# 🌐 PulseHTTP — Minimal HTTP/1.1 Server on Raw TCP
-
 > *A handcrafted HTTP server written in Go, built from the ground up using raw TCP sockets. No frameworks. No `net/http`. Just protocols, sockets, and packets.*
 
 **Author:** Kartik Saxena
